@@ -1,0 +1,70 @@
+name: Auto Publish 1-Hour Long-Form Videos to YouTube
+
+on:
+  schedule:
+    # Runs daily at 9:00 AM UTC
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      GOOGLE_DRIVE_VIDEO_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_VIDEO_FOLDER_ID }}
+      GOOGLE_DRIVE_AUDIO_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_AUDIO_FOLDER_ID }}
+      GOOGLE_DRIVE_IMAGE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_IMAGE_FOLDER_ID }}
+      GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+      POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+      CHANNEL_NAME: ${{ secrets.CHANNEL_NAME }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install FFmpeg & Fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-freefont-ttf
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run automation pipeline (1-Hour 1080p HD)
+        run: |
+          echo "Starting 1-Hour (3600s) 1080p Full HD publishing pipeline..."
+          python auto_pipeline.py --duration 3600
+
+      - name: Commit published videos log
+        if: always()
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add published_videos.json
+          if git diff --staged --quiet; then
+            echo "No changes to published_videos.json to commit."
+          else
+            git commit -m "chore: update published videos log [skip ci]"
+            git push origin main
+          fi

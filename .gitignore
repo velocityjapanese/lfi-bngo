@@ -1,0 +1,40 @@
+# Environment variables
+.env
+.env.local
+
+# Service account & tokens
+service_account.json
+token_*.json
+credentials.json
+client_secrets.json
+
+# Media directories & generated artifacts
+input_videos/
+input_audio/
+input_images/
+output_videos/
+output_thumbnails/
+temp_clean.mp4
+temp_block.mp4
+temp_inpaint.mp4
+temp_*.mp4
+temp_*.png
+*.mp4
+*.mp3
+*.wav
+*.jpg
+*.jpeg
+*.png
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv
+venv/
+ENV/
+
+# OS specific
+.DS_Store
+Thumbs.db
