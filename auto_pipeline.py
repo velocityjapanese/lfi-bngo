@@ -46,14 +46,17 @@ def get_published_history():
     return []
 
 
-def save_published_entry(video_name, audio_name, image_name, yt_video_id=None, title=""):
+def save_published_entry(video_name, audio_name, image_name, yt_video_id=None, fb_video_id=None, title=""):
     history = get_published_history()
+    fb_page_id = os.getenv("FB_PAGE_ID", "1317156068151368")
     entry = {
         "video_file": os.path.basename(video_name),
         "audio_file": os.path.basename(audio_name),
         "image_file": os.path.basename(image_name) if image_name else "",
         "youtube_id": yt_video_id,
         "youtube_url": f"https://youtu.be/{yt_video_id}" if yt_video_id else "LOCAL_RENDER",
+        "facebook_id": fb_video_id,
+        "facebook_url": f"https://www.facebook.com/{fb_page_id}/videos/{fb_video_id}" if fb_video_id else None,
         "title": title,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -233,32 +236,43 @@ def run_pipeline(duration=3600, dry_run=False, video_override=None, audio_overri
     if dry_run:
         print(f"\n[DRY RUN] Completed. Video saved at: {final_video_path}")
         print(f"[DRY RUN] Thumbnail saved at: {thumb_output}")
-        save_published_entry(vid_path, aud_path, img_path, yt_video_id=None, title=title)
+        save_published_entry(vid_path, aud_path, img_path, yt_video_id=None, fb_video_id=None, title=title)
         return True
 
-    # Step 5: Upload to YouTube & Set Custom Thumbnail
+    # Step 5: Upload to Platforms (YouTube & Facebook)
+    video_id = None
     try:
         from publish_youtube import upload_to_youtube, set_video_thumbnail
         print(f"\n[STEP 5] Uploading 1-Hour Video to YouTube...")
         video_id = upload_to_youtube(final_video_path, title, desc, tags=tags)
         if video_id:
             set_video_thumbnail(video_id, thumb_output)
-            save_published_entry(vid_path, aud_path, img_path, yt_video_id=video_id, title=title)
             print(f"🎉 SUCCESS! Published to YouTube: https://youtu.be/{video_id}")
-
-            # Step 6: Cleanup rendered video to free disk space
-            if os.path.exists(final_video_path):
-                try:
-                    os.remove(final_video_path)
-                    print(f"[CLEANUP] Deleted rendered video to save disk space: {final_video_path}")
-                except Exception:
-                    pass
-
-            return True
     except Exception as e:
         print(f"[YOUTUBE NOTE] YouTube API upload error: {e}")
-        save_published_entry(vid_path, aud_path, img_path, yt_video_id=None, title=title)
-        return False
+
+    # Facebook Page Upload
+    fb_video_id = None
+    try:
+        from publish_facebook import upload_to_facebook
+        print(f"\n[facebook] Uploading to Facebook Page Lofi Bingoo...")
+        fb_res = upload_to_facebook(final_video_path, title, desc)
+        fb_video_id = fb_res.get("id")
+        print(f"🎉 SUCCESS! Published to Facebook: {fb_video_id}")
+    except Exception as e_fb:
+        print(f"[FACEBOOK NOTE] Facebook upload skipped or encountered error: {e_fb}")
+
+    save_published_entry(vid_path, aud_path, img_path, yt_video_id=video_id, fb_video_id=fb_video_id, title=title)
+
+    # Step 6: Cleanup rendered video to free disk space
+    if os.path.exists(final_video_path):
+        try:
+            os.remove(final_video_path)
+            print(f"[CLEANUP] Deleted rendered video to save disk space: {final_video_path}")
+        except Exception:
+            pass
+
+    return True if (video_id or fb_video_id) else False
 
 
 if __name__ == "__main__":
