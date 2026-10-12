@@ -82,6 +82,10 @@ def upload_to_youtube(video_path, title, description, tags=None, category_id="10
     Uploads a long-form video to YouTube.
     Category 10 = Music
     """
+    upload_yt = os.getenv("UPLOAD_YOUTUBE", "true").lower()
+    if upload_yt in ("false", "0", "no"):
+        print("[youtube] ⏸️ Skipping YouTube upload (UPLOAD_YOUTUBE=false). Facebook will continue.")
+        return None
     if tags is None:
         tags = [
             "lofi", "lofi beats", "study music", "lofi study", "lofi bingoo",

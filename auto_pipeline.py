@@ -241,15 +241,19 @@ def run_pipeline(duration=3600, dry_run=False, video_override=None, audio_overri
 
     # Step 5: Upload to Platforms (YouTube & Facebook)
     video_id = None
-    try:
-        from publish_youtube import upload_to_youtube, set_video_thumbnail
-        print(f"\n[STEP 5] Uploading 1-Hour Video to YouTube...")
-        video_id = upload_to_youtube(final_video_path, title, desc, tags=tags)
-        if video_id:
-            set_video_thumbnail(video_id, thumb_output)
-            print(f"🎉 SUCCESS! Published to YouTube: https://youtu.be/{video_id}")
-    except Exception as e:
-        print(f"[YOUTUBE NOTE] YouTube API upload error: {e}")
+    upload_yt = os.getenv("UPLOAD_YOUTUBE", "true").lower()
+    if upload_yt in ("false", "0", "no"):
+        print("\n[STEP 5] ⏸️ Skipping YouTube upload (UPLOAD_YOUTUBE=false). Facebook upload will proceed.")
+    else:
+        try:
+            from publish_youtube import upload_to_youtube, set_video_thumbnail
+            print(f"\n[STEP 5] Uploading 1-Hour Video to YouTube...")
+            video_id = upload_to_youtube(final_video_path, title, desc, tags=tags)
+            if video_id:
+                set_video_thumbnail(video_id, thumb_output)
+                print(f"🎉 SUCCESS! Published to YouTube: https://youtu.be/{video_id}")
+        except Exception as e:
+            print(f"[YOUTUBE NOTE] YouTube API upload error: {e}")
 
     # Facebook Page Upload
     fb_video_id = None
@@ -272,7 +276,7 @@ def run_pipeline(duration=3600, dry_run=False, video_override=None, audio_overri
         except Exception:
             pass
 
-    return True if (video_id or fb_video_id) else False
+    return True if (video_id or fb_video_id or upload_yt in ("false", "0", "no")) else False
 
 
 if __name__ == "__main__":
