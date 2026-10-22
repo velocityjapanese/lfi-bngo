@@ -3,7 +3,7 @@ name: Auto Publish 1-Hour Long-Form Videos to YouTube
 on:
   schedule:
     # Runs daily at 9:00 AM UTC
-    - cron: '0 9 * * *'
+    - cron: '27 9 * * *'
   workflow_dispatch:
     inputs:
       upload_youtube:
@@ -92,7 +92,21 @@ jobs:
           UPLOAD_YOUTUBE: ${{ steps.yt_schedule.outputs.should_upload }}
         run: |
           echo "Starting 1-Hour (3600s) 1080p Full HD publishing pipeline..."
-          python auto_pipeline.py --duration 3600
+          max_retries=2
+          count=0
+          until [ $count -ge $max_retries ]
+          do
+            echo ">>> Execution attempt $((count+1)) of $max_retries..."
+            if python auto_pipeline.py --duration "$DURATION" $DRY_RUN_FLAG; then
+              echo "Pipeline completed successfully."
+              exit 0
+            fi
+            count=$((count+1))
+            echo "Attempt $count failed. Retrying in 15 seconds..."
+            sleep 15
+          done
+          echo "Pipeline failed after $max_retries attempts."
+          exit 1
 
       - name: Commit published videos log
         if: always()

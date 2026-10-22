@@ -162,69 +162,51 @@ def build_lofi_longform_video(input_video, input_audio, output_path, duration_se
     subprocess.run(cmd_block, check=True)
 
     _, _, block_dur = get_media_info(temp_block)
-    loop_count = int(duration_seconds / max(block_dur, 1)) + 2
-    fade_start = max(0, duration_seconds - 4)
+    loop_count = int(duration_seconds / block_dur) + 2
+    fade_start = max(0, duration_seconds - 3)
+
+    _, _, audio_dur = get_media_info(input_audio)
+    audio_loop_count = int(duration_seconds / audio_dur) + 2 if audio_dur > 0 else 100
 
     # Check encoder
     if is_nvenc_available():
         print("[VIDEO] Using NVIDIA NVENC Hardware Acceleration...")
-        video_codec_args = ["-c:v", "h264_nvenc", "-cq", "19", "-b:v", "14M"]
+        video_codec_args = ['-c:v', 'h264_nvenc', '-cq', '19', '-b:v', '14M']
     else:
-        print("[VIDEO] Using CPU libx264 encoder (veryfast preset)...")
-        video_codec_args = ["-c:v", "libx264", "-crf", "18", "-preset", "veryfast"]
+        video_codec_args = ['-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast']
 
-    # Step 3: Full assemble with audio loop and fade out
-    print("[VIDEO] Assembling full 1080p video with audio synchronization...")
+    # Step 3: Full assemble with audio loop and fade out using high-speed stream copy
+    print(f"[VIDEO] Assembling full 1080p video ({duration_seconds}s) with high-speed stream copy...")
     cmd_full = [
-        "ffmpeg", "-y",
-        "-stream_loop", str(loop_count), "-i", temp_block,
-        "-stream_loop", "-1", "-i", str(input_audio),
-        "-filter_complex", (
-            f"[0:v]trim=0:{duration_seconds},setpts=PTS-STARTPTS,fade=t=out:st={fade_start}:d=4[v_out];"
-            f"[1:a]atrim=0:{duration_seconds},asetpts=PTS-STARTPTS,afade=t=out:st={fade_start}:d=4[a_out]"
-        ),
-        "-map", "[v_out]",
-        "-map", "[a_out]",
-        *video_codec_args,
-        "-c:a", "aac", "-b:a", "320k",
-        "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
+        'ffmpeg', '-y',
+        '-stream_loop', str(loop_count), '-i', temp_block,
+        '-stream_loop', str(audio_loop_count), '-i', str(input_audio),
+        '-c:v', 'copy',
+        '-af', f"afade=t=out:st={fade_start}:d=3",
+        '-c:a', 'aac', '-b:a', '320k',
+        '-t', str(duration_seconds),
+        '-movflags', '+faststart',
         str(output_path)
     ]
 
     try:
         subprocess.run(cmd_full, check=True)
-    except subprocess.CalledProcessError:
-        print("[!] NVENC failed or unavailable, falling back to libx264 CPU encoder...")
-        cmd_full_cpu = [
-            "ffmpeg", "-y",
-            "-stream_loop", str(loop_count), "-i", temp_block,
-            "-stream_loop", "-1", "-i", str(input_audio),
-            "-filter_complex", (
-                f"[0:v]trim=0:{duration_seconds},setpts=PTS-STARTPTS,fade=t=out:st={fade_start}:d=4[v_out];"
-                f"[1:a]atrim=0:{duration_seconds},asetpts=PTS-STARTPTS,afade=t=out:st={fade_start}:d=4[a_out]"
+    except Exception as e_copy:
+        print(f"[VIDEO WARN] Stream copy assemble encountered an issue ({e_copy}), falling back to direct encoder...")
+        cmd_fallback = [
+            'ffmpeg', '-y',
+            '-stream_loop', str(loop_count), '-i', temp_block,
+            '-stream_loop', '-1', '-i', str(input_audio),
+            '-filter_complex', (
+                f"[0:v]trim=0:{duration_seconds},setpts=PTS-STARTPTS,fade=t=out:st={fade_start}:d=3[v_out];"
+                f"[1:a]atrim=0:{duration_seconds},asetpts=PTS-STARTPTS,afade=t=out:st={fade_start}:d=3[a_out]"
             ),
-            "-map", "[v_out]",
-            "-map", "[a_out]",
-            "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
-            "-c:a", "aac", "-b:a", "320k",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            '-map', '[v_out]',
+            '-map', '[a_out]',
+            *video_codec_args,
+            '-c:a', 'aac', '-b:a', '320k',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
             str(output_path)
         ]
-        subprocess.run(cmd_full_cpu, check=True)
-
-    # Cleanup temp
-    for t in [temp_inpaint, temp_clean, temp_block]:
-        if os.path.exists(t):
-            try:
-                os.remove(t)
-            except Exception:
-                pass
-
-    print(f"[SUCCESS] 1080p Video rendered successfully (Watermark Removed): {output_path}")
-    return True
-
-
-# Alias for cross-module compatibility
-build_tropical_longform_video = build_lofi_longform_video
+        subprocess.run(cmd_fallback, check=True)
