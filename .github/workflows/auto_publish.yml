@@ -92,6 +92,7 @@ jobs:
           UPLOAD_YOUTUBE: ${{ steps.yt_schedule.outputs.should_upload }}
         run: |
           echo "Starting 1-Hour (3600s) 1080p Full HD publishing pipeline..."
+          DURATION="${{ github.event.inputs.duration || '3600' }}"
           max_retries=2
           count=0
           until [ $count -ge $max_retries ]
