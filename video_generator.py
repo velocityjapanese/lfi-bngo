@@ -210,3 +210,14 @@ def build_lofi_longform_video(input_video, input_audio, output_path, duration_se
             str(output_path)
         ]
         subprocess.run(cmd_fallback, check=True)
+
+    # Cleanup temp
+    for t in [temp_clean, temp_block]:
+        if os.path.exists(t):
+            try:
+                os.remove(t)
+            except Exception:
+                pass
+
+    print(f"[SUCCESS] 1080p Video rendered successfully: {output_path}")
+    return True
